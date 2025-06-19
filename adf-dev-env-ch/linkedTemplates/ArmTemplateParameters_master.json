@@ -1,0 +1,30 @@
+{
+	"$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"factoryName": {
+			"value": "adf-dev-env-ch"
+		},
+		"AzureDataLakeStorage1_accountKey": {
+			"value": ""
+		},
+		"ls_SqlServer1_dynamic_connectionString": {
+			"value": "integrated security=True;Data Source=CHANDANCS\\SQLEXPRESS;Initial Catalog=@{linkedService().Database}"
+		},
+		"ls_SqlServer1_dynamic_password": {
+			"value": ""
+		},
+		"AzureDataLakeStorage1_properties_typeProperties_url": {
+			"value": "https://sadevenv.dfs.core.windows.net/"
+		},
+		"ls_SqlServer1_dynamic_properties_typeProperties_userName": {
+			"value": "CHANDANCS\\ChandanS"
+		},
+		"containerUri": {
+			"value": ""
+		},
+		"containerSasToken": {
+			"value": ""
+		}
+	}
+}
