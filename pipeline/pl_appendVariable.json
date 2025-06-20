@@ -1,0 +1,35 @@
+{
+	"name": "pl_appendVariable",
+	"properties": {
+		"activities": [
+			{
+				"name": "Append variable1",
+				"type": "AppendVariable",
+				"dependsOn": [],
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "ListOfFiles",
+					"value": {
+						"value": "@pipeline().parameters.FileName",
+						"type": "Expression"
+					}
+				}
+			}
+		],
+		"parameters": {
+			"FileName": {
+				"type": "string"
+			}
+		},
+		"variables": {
+			"ListOfFiles": {
+				"type": "Array",
+				"defaultValue": [
+					"SalesUS",
+					"SalesUK"
+				]
+			}
+		},
+		"annotations": []
+	}
+}
