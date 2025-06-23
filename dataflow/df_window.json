@@ -24,6 +24,12 @@
 			"transformations": [
 				{
 					"name": "window1"
+				},
+				{
+					"name": "rank1"
+				},
+				{
+					"name": "rank2"
 				}
 			],
 			"scriptLines": [
@@ -44,7 +50,12 @@
 				"          min = min(EMPLOYEESALARY),",
 				"          count = count(EMPLOYEESALARY),",
 				"          rowNumber = rowNumber()) ~> window1",
-				"window1 sink(allowSchemaDrift: true,",
+				"window1 rank(asc(EMPLOYEEDEPARTMENT, true),",
+				"     output(Rank as long)) ~> rank1",
+				"rank1 rank(asc(EMPLOYEEDEPARTMENT, true),",
+				"     output(DenseRank as long),",
+				"     dense: true) ~> rank2",
+				"rank2 sink(allowSchemaDrift: true,",
 				"     validateSchema: false,",
 				"     input(",
 				"          CourseID as string,",
