@@ -6,7 +6,7 @@
 			"sources": [
 				{
 					"dataset": {
-						"referenceName": "DelimitedText6",
+						"referenceName": "DelimitedText9",
 						"type": "DatasetReference"
 					},
 					"name": "source1"
@@ -28,7 +28,7 @@
 			],
 			"scriptLines": [
 				"source(output(",
-				"          Sales_ID as integer,",
+				"          Sales_ID as string,",
 				"          SO_Date as string,",
 				"          CustID as string,",
 				"          Qty as string,",
@@ -38,7 +38,7 @@
 				"     allowSchemaDrift: true,",
 				"     validateSchema: false,",
 				"     ignoreNoFilesFound: false) ~> source1",
-				"source1 alterRow(deleteIf(Sales_ID==9),",
+				"source1 alterRow(insertIf(Country=='IND'),",
 				"     upsertIf(Country=='IND'),",
 				"     partitionBy('hash', 1)) ~> alterRow1",
 				"alterRow1 sink(allowSchemaDrift: true,",
