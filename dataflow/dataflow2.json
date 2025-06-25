@@ -26,6 +26,13 @@
 						"type": "DatasetReference"
 					},
 					"name": "sink1"
+				},
+				{
+					"dataset": {
+						"referenceName": "ds_df_output",
+						"type": "DatasetReference"
+					},
+					"name": "sink2"
 				}
 			],
 			"transformations": [
@@ -34,6 +41,9 @@
 				},
 				{
 					"name": "filter1"
+				},
+				{
+					"name": "filter2"
 				}
 			],
 			"scriptLines": [
@@ -59,6 +69,7 @@
 				"     expectTrue(!isNull(toDate(SO_Date,'MM/dd/yyyy')), false, 'SalesDate'),",
 				"     expectExists(CustID == CustomerID, false, 'Customer_ID')) ~> assert1",
 				"assert1 filter(isError()==true()) ~> filter1",
+				"assert1 filter(isError()==false()) ~> filter2",
 				"filter1 sink(allowSchemaDrift: true,",
 				"     validateSchema: false,",
 				"     input(",
@@ -72,7 +83,20 @@
 				"     postCommands: [],",
 				"     skipDuplicateMapInputs: true,",
 				"     skipDuplicateMapOutputs: true,",
-				"     partitionBy('hash', 1)) ~> sink1"
+				"     partitionBy('hash', 1)) ~> sink1",
+				"filter2 sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     input(",
+				"          CourseID as string,",
+				"          CourseName as string,",
+				"          StudentID as string",
+				"     ),",
+				"     partitionFileNames:['SalesValid.csv'],",
+				"     umask: 0022,",
+				"     preCommands: [],",
+				"     postCommands: [],",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> sink2"
 			]
 		}
 	}
