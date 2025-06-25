@@ -47,6 +47,12 @@
 				},
 				{
 					"name": "derivedColumn1"
+				},
+				{
+					"name": "cast1"
+				},
+				{
+					"name": "sort1"
 				}
 			],
 			"scriptLines": [
@@ -76,6 +82,11 @@
 				"assert1 derive({Error_Rows } = isError(),",
 				"          Error_Description = case(hasError('SalesID')==true(),'SalesID Error its no unique', hasError('SalesDate')==true(),'SalesDate',hasError('Customer_ID')==true(),'Customer_ID')\r",
 				") ~> derivedColumn1",
+				"filter2 cast(output(",
+				"          Sales_ID as integer",
+				"     ),",
+				"     errors: true) ~> cast1",
+				"cast1 sort(asc(Sales_ID, true)) ~> sort1",
 				"filter1 sink(allowSchemaDrift: true,",
 				"     validateSchema: false,",
 				"     input(",
@@ -90,7 +101,7 @@
 				"     skipDuplicateMapInputs: true,",
 				"     skipDuplicateMapOutputs: true,",
 				"     partitionBy('hash', 1)) ~> sink1",
-				"filter2 sink(allowSchemaDrift: true,",
+				"sort1 sink(allowSchemaDrift: true,",
 				"     validateSchema: false,",
 				"     input(",
 				"          CourseID as string,",
@@ -102,7 +113,8 @@
 				"     preCommands: [],",
 				"     postCommands: [],",
 				"     skipDuplicateMapInputs: true,",
-				"     skipDuplicateMapOutputs: true) ~> sink2"
+				"     skipDuplicateMapOutputs: true,",
+				"     partitionBy('hash', 1)) ~> sink2"
 			]
 		}
 	}
