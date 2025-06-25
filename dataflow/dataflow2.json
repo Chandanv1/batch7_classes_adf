@@ -44,6 +44,9 @@
 				},
 				{
 					"name": "filter2"
+				},
+				{
+					"name": "derivedColumn1"
 				}
 			],
 			"scriptLines": [
@@ -68,8 +71,11 @@
 				"source1, source2 assert(expectUnique(Sales_ID, false, 'SalesID'),",
 				"     expectTrue(!isNull(toDate(SO_Date,'MM/dd/yyyy')), false, 'SalesDate'),",
 				"     expectExists(CustID == CustomerID, false, 'Customer_ID')) ~> assert1",
-				"assert1 filter(isError()==true()) ~> filter1",
+				"derivedColumn1 filter(isError()==true()) ~> filter1",
 				"assert1 filter(isError()==false()) ~> filter2",
+				"assert1 derive({Error_Rows } = isError(),",
+				"          Error_Description = case(hasError('SalesID')==true(),'SalesID Error its no unique', hasError('SalesDate')==true(),'SalesDate',hasError('Customer_ID')==true(),'Customer_ID')\r",
+				") ~> derivedColumn1",
 				"filter1 sink(allowSchemaDrift: true,",
 				"     validateSchema: false,",
 				"     input(",
