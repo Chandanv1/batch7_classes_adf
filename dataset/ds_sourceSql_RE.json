@@ -3,7 +3,10 @@
 	"properties": {
 		"linkedServiceName": {
 			"referenceName": "ls_SqlServer1_dynamic",
-			"type": "LinkedServiceReference"
+			"type": "LinkedServiceReference",
+			"parameters": {
+				"Database": "SUPPLYCHAIN_5"
+			}
 		},
 		"annotations": [],
 		"type": "SqlServerTable",
