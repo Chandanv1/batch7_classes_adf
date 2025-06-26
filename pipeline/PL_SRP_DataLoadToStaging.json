@@ -16,9 +16,14 @@
 				"userProperties": [],
 				"typeProperties": {
 					"source": {
-						"type": "SqlMISource",
-						"sqlReaderQuery": "SELECT SourceSchemaName\r\n\t,SourceTableName\r\n\t,SourceQuery + CASE \r\n\t\tWHEN LastWatermarkValue IS NULL\r\n\t\t\tAND WatermarkDataType = 'DATETIME'\r\n\t\t\tTHEN '01/01/1900'\r\n\t\tWHEN LastWatermarkValue IS NULL\r\n\t\t\tAND WatermarkDataType = 'INT'\r\n\t\t\tTHEN '0'\r\n\t\tWHEN LastWatermarkValue IS NULL\r\n\t\t\tAND WatermarkDataType = 'N/A'\r\n\t\t\tTHEN ''\r\n\t\tELSE ''''+LastWatermarkValue+''''\r\n\t\tEND AS SourceQuery,\r\n\t\tSourceName\r\nFROM [IncrementalLoadMetadata]\r\nWHERE SourceName = 'SRP'\r\nAND IsActive=1;",
+						"type": "SqlServerSource",
+						"sqlReaderQuery": "select SourceSchemaName\r\n, SourceTableName\r\n,SourceQuery + case\r\nwhen LastwatermarkValue IS NULL \r\n\tAND WaterMarkDateType ='datetime'\r\n\tthen '01/01/1900'\r\nwhen LastwatermarkValue IS NULL \r\n\tAND WaterMarkDateType ='int'\r\n\tthen '0'\r\nwhen LastwatermarkValue IS NULL \r\n\tAND WaterMarkDateType ='N/A'\r\n\tthen ''\r\n\tElse ''''+LastwatermarkValue+''''\r\n\tend as SourceQuery,\r\n\tSourceName\r\nFROM incrementalLoadMetadata\r\nWHERE SourceName = ''\r\nAND isActive =1;",
+						"queryTimeout": "02:00:00",
 						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "ls_OnPremData",
+						"type": "DatasetReference"
 					},
 					"firstRowOnly": false
 				}
@@ -63,17 +68,6 @@
 									},
 									"queryTimeout": "02:00:00",
 									"partitionOption": "None"
-								},
-								"sink": {
-									"type": "DelimitedTextSink",
-									"storeSettings": {
-										"type": "AzureBlobFSWriteSettings"
-									},
-									"formatSettings": {
-										"type": "DelimitedTextWriteSettings",
-										"quoteAllText": true,
-										"fileExtension": ".txt"
-									}
 								},
 								"enableStaging": false,
 								"parallelCopies": 8
