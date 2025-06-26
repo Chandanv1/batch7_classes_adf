@@ -23,7 +23,11 @@
 					},
 					"dataset": {
 						"referenceName": "ls_OnPremData",
-						"type": "DatasetReference"
+						"type": "DatasetReference",
+						"parameters": {
+							"SchemaName": "dbo",
+							"TableName": "incrementalLoadMetadata"
+						}
 					},
 					"firstRowOnly": false
 				}
