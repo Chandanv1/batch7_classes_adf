@@ -1,0 +1,210 @@
+{
+	"name": "PL_SRP_DataLoadToStaging",
+	"properties": {
+		"activities": [
+			{
+				"name": "Get Metadata",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "SqlMISource",
+						"sqlReaderQuery": "SELECT SourceSchemaName\r\n\t,SourceTableName\r\n\t,SourceQuery + CASE \r\n\t\tWHEN LastWatermarkValue IS NULL\r\n\t\t\tAND WatermarkDataType = 'DATETIME'\r\n\t\t\tTHEN '01/01/1900'\r\n\t\tWHEN LastWatermarkValue IS NULL\r\n\t\t\tAND WatermarkDataType = 'INT'\r\n\t\t\tTHEN '0'\r\n\t\tWHEN LastWatermarkValue IS NULL\r\n\t\t\tAND WatermarkDataType = 'N/A'\r\n\t\t\tTHEN ''\r\n\t\tELSE ''''+LastWatermarkValue+''''\r\n\t\tEND AS SourceQuery,\r\n\t\tSourceName\r\nFROM [IncrementalLoadMetadata]\r\nWHERE SourceName = 'SRP'\r\nAND IsActive=1;",
+						"partitionOption": "None"
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "LoadData",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "Get Metadata",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('Get Metadata').output.value\n",
+						"type": "Expression"
+					},
+					"isSequential": true,
+					"activities": [
+						{
+							"name": "Copy To csv",
+							"type": "Copy",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "SqlServerSource",
+									"sqlReaderQuery": {
+										"value": "@item().SourceQuery",
+										"type": "Expression"
+									},
+									"queryTimeout": "02:00:00",
+									"partitionOption": "None"
+								},
+								"sink": {
+									"type": "DelimitedTextSink",
+									"storeSettings": {
+										"type": "AzureBlobFSWriteSettings"
+									},
+									"formatSettings": {
+										"type": "DelimitedTextWriteSettings",
+										"quoteAllText": true,
+										"fileExtension": ".txt"
+									}
+								},
+								"enableStaging": false,
+								"parallelCopies": 8
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "csv to parquet",
+				"type": "SynapseNotebook",
+				"dependsOn": [
+					{
+						"activity": "Get Max Date",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"snapshot": true,
+					"executorSize": "Small",
+					"conf": {
+						"spark.dynamicAllocation.enabled": true
+					},
+					"driverSize": "Small"
+				}
+			},
+			{
+				"name": "Get Max Date",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "LoadData",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "SqlServerSource",
+						"sqlReaderQuery": "SELECT\r\n(SELECT MAX(RegisteredPropertyId) FROM dbo.tbRegisteredProperty ) AS MaxtbRegisteredProperty,\r\n(SELECT MAX(ServiceRequestID) FROM dbo.tbSearchResult ) AS MaxtbSearchResult,\r\n(SELECT MAX(StatusDate) FROM dbo.tbServiceRequest ) AS MaxtbServiceRequest,\r\n(SELECT MAX(propertyID) FROM dbo.tbProperty ) AS MaxtbProperty,\r\n(SELECT MAX(StatusDate) FROM dbo.tbSearch ) AS MaxtbSearch,\r\n(SELECT MAX(InstrumentID) FROM dbo.tbInstrument ) AS MaxtbInstrument,\r\n(SELECT MAX(partyid) FROM dbo.tbParty ) AS MaxtbParty,\r\n(SELECT MAX(RegisteredOwnerID) FROM dbo.tbRegisteredOwner ) AS MaxtbRegisteredOwner;",
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					}
+				}
+			},
+			{
+				"name": "Update LastLoadDate",
+				"type": "Script",
+				"dependsOn": [
+					{
+						"activity": "csv to parquet",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"scripts": [
+						{
+							"type": "Query",
+							"text": {
+								"value": "UPDATE dbo.IncrementalLoadMetadata \nSET LastWatermarkValue='@{activity('Get Max Date').output.firstRow.MaxtbRegisteredProperty}' \nWHERE SourceName='srp' AND SourceTableName='tbRegisteredProperty';\n\nUPDATE dbo.IncrementalLoadMetadata \nSET LastWatermarkValue='@{activity('Get Max Date').output.firstRow.MaxtbSearchResult}' \nWHERE SourceName='srp' AND SourceTableName='tbSearchResult';\n\nUPDATE dbo.IncrementalLoadMetadata \nSET LastWatermarkValue='@{activity('Get Max Date').output.firstRow.MaxtbServiceRequest}' \nWHERE SourceName='srp' AND SourceTableName='tbServiceRequest';\n\nUPDATE dbo.IncrementalLoadMetadata \nSET LastWatermarkValue='@{activity('Get Max Date').output.firstRow.MaxtbProperty}' \nWHERE SourceName='srp' AND SourceTableName='tbProperty';\n\nUPDATE dbo.IncrementalLoadMetadata \nSET LastWatermarkValue='@{activity('Get Max Date').output.firstRow.MaxtbSearch}' \nWHERE SourceName='srp' AND SourceTableName='tbSearch';\n\nUPDATE dbo.IncrementalLoadMetadata \nSET LastWatermarkValue='@{activity('Get Max Date').output.firstRow.MaxtbInstrument}' \nWHERE SourceName='srp' AND SourceTableName='tbInstrument';\n\nUPDATE dbo.IncrementalLoadMetadata \nSET LastWatermarkValue='@{activity('Get Max Date').output.firstRow.MaxtbParty}' \nWHERE SourceName='srp' AND SourceTableName='tbParty';\n\nUPDATE dbo.IncrementalLoadMetadata \nSET LastWatermarkValue='@{activity('Get Max Date').output.firstRow.MaxtbRegisteredOwner}' \nWHERE SourceName='srp' AND SourceTableName='tbRegisteredOwner';\n",
+								"type": "Expression"
+							}
+						}
+					],
+					"scriptBlockExecutionTimeout": "02:00:00"
+				}
+			},
+			{
+				"name": "Delete csv Files",
+				"type": "Delete",
+				"dependsOn": [
+					{
+						"activity": "Update LastLoadDate",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"enableLogging": false,
+					"storeSettings": {
+						"type": "AzureBlobFSReadSettings",
+						"recursive": true,
+						"wildcardFileName": "*.csv",
+						"enablePartitionDiscovery": false
+					}
+				}
+			}
+		],
+		"folder": {
+			"name": "SRP"
+		},
+		"annotations": [],
+		"lastPublishTime": "2025-04-29T13:44:51Z"
+	},
+	"type": "Microsoft.Synapse/workspaces/pipelines"
+}
