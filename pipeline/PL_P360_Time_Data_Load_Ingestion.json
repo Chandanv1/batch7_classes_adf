@@ -1,0 +1,1271 @@
+{
+	"name": "PL_P360_Time_Data_Load_Ingestion",
+	"properties": {
+		"activities": [
+			{
+				"name": "Lookup ConfigTable",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "RunSRP_Integration_Sequence",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "SqlMISource",
+						"sqlReaderQuery": "SELECT * FROM  dbo.ConfigFileMapping where Active = 1 AND SourceDomain = 'SRP' and islink_Table = 0 order by SEQUENCE_Order asc",
+						"partitionOption": "None"
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "CREATE PARQUET TO ADLS",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "Lookup ConfigTable",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('Lookup ConfigTable').output.value",
+						"type": "Expression"
+					},
+					"isSequential": true,
+					"activities": [
+						{
+							"name": "Copy data",
+							"type": "Copy",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "ParquetSource",
+									"storeSettings": {
+										"type": "AzureBlobFSReadSettings",
+										"recursive": true,
+										"wildcardFolderPath": {
+											"value": "@item().FilePath",
+											"type": "Expression"
+										},
+										"wildcardFileName": {
+											"value": "@concat(item().FileNamePrefix,'*')",
+											"type": "Expression"
+										},
+										"enablePartitionDiscovery": false
+									},
+									"formatSettings": {
+										"type": "ParquetReadSettings"
+									}
+								},
+								"sink": {
+									"type": "SqlMISink",
+									"preCopyScript": {
+										"value": "TRUNCATE TABLE @{concat(item().TableSchema, '.', item().Tablename)}",
+										"type": "Expression"
+									},
+									"writeBehavior": "insert",
+									"sqlWriterUseTableLock": false
+								},
+								"enableStaging": false
+							}
+						},
+						{
+							"name": "Set variabe Error",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Copy data",
+									"dependencyConditions": [
+										"Failed"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "VarSRP_PreIntegration",
+								"value": {
+									"value": "@concat('Item: ', string(item()), ' - Error: ', activity('Copy data').error.message)\n",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Fail1",
+							"type": "Fail",
+							"dependsOn": [
+								{
+									"activity": "Set variabe Error",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"message": "PipeLineFailed",
+								"errorCode": "400"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Get LIST OF STAGE TABLE",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "RunSRP_PreIntegration_SequencelNoteBook",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "SqlMISource",
+						"sqlReaderQuery": "  select * from [dbo].[MergeConfig] WHERE SourceDomain = 'SRP' AND ACTIVE = 1 and islink_Table = 0  order by SEQUENCE_Order asc",
+						"partitionOption": "None"
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "STAGE TABLE CREATION",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "Get LIST OF STAGE TABLE",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('Get LIST OF STAGE TABLE').output.value",
+						"type": "Expression"
+					},
+					"isSequential": true,
+					"activities": [
+						{
+							"name": "Script1_copy1",
+							"type": "Script",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"scripts": [
+									{
+										"type": "Query",
+										"text": {
+											"value": "@item().SourceTableDDL\n",
+											"type": "Expression"
+										}
+									}
+								],
+								"scriptBlockExecutionTimeout": "02:00:00"
+							}
+						},
+						{
+							"name": "Set variable1",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Script1_copy1",
+									"dependencyConditions": [
+										"Failed"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "varerror",
+								"value": {
+									"value": "@concat('Item: ', string(item()), ' - Error: ', activity('Script1_copy1').error.message)\n",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Script1_copy1_copy1",
+							"type": "Script",
+							"state": "Inactive",
+							"onInactiveMarkAs": "Succeeded",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"scripts": [
+									{
+										"type": "Query",
+										"text": {
+											"value": "@item().SourceTableDDL\n",
+											"type": "Expression"
+										}
+									}
+								],
+								"scriptBlockExecutionTimeout": "02:00:00"
+							}
+						},
+						{
+							"name": "Fail",
+							"type": "Fail",
+							"dependsOn": [
+								{
+									"activity": "Set variable1",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"message": "PipeLineFailed",
+								"errorCode": "400"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Drop Table STAGE TABLE",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "UPDATE GOLDEN LAYER",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "SqlMISource",
+						"sqlReaderQuery": "select * from [dbo].[MergeConfig] WHERE SourceDomain = 'SRP' AND ACTIVE = 1 and islink_Table = 0",
+						"partitionOption": "None"
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "Drop STAGE Table in Loop",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "Drop Table STAGE TABLE",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('Drop Table STAGE TABLE').output.value",
+						"type": "Expression"
+					},
+					"activities": [
+						{
+							"name": "Drop Table Script",
+							"type": "Script",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"scripts": [
+									{
+										"type": "Query",
+										"text": {
+											"value": "@concat('DROP TABLE [', item().TableSchema, '].[', item().DelSourceTable, '];')\n\n",
+											"type": "Expression"
+										}
+									}
+								],
+								"scriptBlockExecutionTimeout": "02:00:00"
+							}
+						},
+						{
+							"name": "Set variable1_copy1_copy2",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Drop Table Script",
+									"dependencyConditions": [
+										"Failed"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "varerror4",
+								"value": {
+									"value": "@concat('Item: ', string(item()), ' - Error: ', activity('Drop Table Script').error.message)\n",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Fail1_copy1_copy2",
+							"type": "Fail",
+							"dependsOn": [
+								{
+									"activity": "Set variable1_copy1_copy2",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"message": "PipeLineFailed",
+								"errorCode": "400"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "GETTING SYNCUP SCRIPT",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "CREATE PARQUET TO ADLS",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "SqlMISource",
+						"sqlReaderQuery": "select * from [dbo].[MergeConfig] WHERE SourceDomain = 'SRP' AND ACTIVE = 1 and islink_Table = 0 order by SEQUENCE_Order asc",
+						"partitionOption": "None"
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "StartTime",
+				"type": "SetVariable",
+				"dependsOn": [],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "StartTime",
+					"value": {
+						"value": "@convertTimeZone(utcnow(), 'UTC', 'India Standard Time')",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Logs Failure Stored procedure",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "LinkQueryUpdate",
+						"dependencyConditions": [
+							"Skipped",
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[proc_PipelineRunStatus]",
+					"storedProcedureParameters": {
+						"PL_Error_Message": {
+							"value": {
+								"value": "@concat(activity('SRP_Raw_layer')?.error?.message,'|','|',activity('Get LIST OF STAGE TABLE')?.error?.message,'|',variables('varerror'),'|','|'\n,activity('Lookup ConfigTable')?.error?.message,'|',variables('varerror2'),'|',\n\nactivity('GETTING SYNCUP SCRIPT')?.error?.message,'|',variables('varerror3'), '|',variables('VarSRP_PreIntegration'),'|',variables('PreIntegrationErrorSequence'),'|' ,variables('VAR_IntegrationParallel_error'),'|'\n,variables('IntegrationSequenceError'),'|',variables('var_preintegrationerror'),'|' ,variables('var_Integration_LinkError'),'|'  ,variables('varpreintegrationlinkerror'),'|' ,variables('varLink_Stage_Table_Creation_'),'|'\n,variables('var_parquet_adls_link_'),'|' ,variables('var_LoadFinalLinkTableLoad_'),'|' ,variables('VAR_Drop Stg LINK  Table Script_'),'|' \n,activity('Drop Table STAGE TABLE')?.error?.message,'|',variables('varerror4'),'|',activity('LinkQueryUpdate')?.error?.message)",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PL_Name": {
+							"value": {
+								"value": "@pipeline().Pipeline",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PL_RunId": {
+							"value": {
+								"value": "@pipeline().RunId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PL_StartTime": {
+							"value": {
+								"value": "@formatDateTime(variables('StartTime'),'yyyy-MM-dd HH:mm:ss')",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PL_TriggerTime": {
+							"value": {
+								"value": "@pipeline().TriggerTime",
+								"type": "Expression"
+							},
+							"type": "DateTime"
+						},
+						"PL_TriggerType": {
+							"value": {
+								"value": "@pipeline().TriggerType",
+								"type": "Expression"
+							},
+							"type": "String"
+						}
+					}
+				}
+			},
+			{
+				"name": "LinkQueryUpdate",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Drop STAGE Table in Loop",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"waitOnCompletion": true
+				}
+			},
+			{
+				"name": "SRP_Raw_layer",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "StartTime",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"waitOnCompletion": true
+				}
+			},
+			{
+				"name": "UPDATE GOLDEN LAYER",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "GETTING SYNCUP SCRIPT",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('GETTING SYNCUP SCRIPT').output.value",
+						"type": "Expression"
+					},
+					"isSequential": true,
+					"activities": [
+						{
+							"name": "UpsertToSQLMI",
+							"type": "Script",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"scripts": [
+									{
+										"type": "Query",
+										"text": {
+											"value": "@item().MergeSQL",
+											"type": "Expression"
+										}
+									}
+								],
+								"scriptBlockExecutionTimeout": "02:00:00"
+							}
+						},
+						{
+							"name": "Set_variable_For_Error",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "UpsertToSQLMI",
+									"dependencyConditions": [
+										"Failed"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "varerror3",
+								"value": {
+									"value": "@concat('Item: ', string(item()), ' - Error: ', activity('UpsertToSQLMI').error.message)\n",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Fail_PL",
+							"type": "Fail",
+							"dependsOn": [
+								{
+									"activity": "Set_variable_For_Error",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"message": "PipeLineFailed",
+								"errorCode": "400"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Logs Success Stored procedure",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "LinkQueryUpdate",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[proc_PipelineRunStatus]",
+					"storedProcedureParameters": {
+						"PL_Error_Message": {
+							"value": {
+								"value": "@concat(activity('SRP_Raw_layer')?.error?.message,'|','|',activity('Get LIST OF STAGE TABLE')?.error?.message,'|',variables('varerror'),'|','|'\n,activity('Lookup ConfigTable')?.error?.message,'|',variables('varerror2'),'|',\n\nactivity('GETTING SYNCUP SCRIPT')?.error?.message,'|',variables('varerror3'), '|',variables('VarSRP_PreIntegration'),'|',variables('PreIntegrationErrorSequence'),'|' ,variables('VAR_IntegrationParallel_error'),'|'\n,variables('IntegrationSequenceError'),'|',variables('var_preintegrationerror'),'|' ,variables('var_Integration_LinkError'),'|'  ,variables('varpreintegrationlinkerror'),'|' ,variables('varLink_Stage_Table_Creation_'),'|'\n,variables('var_parquet_adls_link_'),'|' ,variables('var_LoadFinalLinkTableLoad_'),'|' ,variables('VAR_Drop Stg LINK  Table Script_'),'|' \n,activity('Drop Table STAGE TABLE')?.error?.message,'|',variables('varerror4'),'|',activity('LinkQueryUpdate')?.error?.message)",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PL_Name": {
+							"value": {
+								"value": "@pipeline().Pipeline",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PL_RunId": {
+							"value": {
+								"value": "@pipeline().RunId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PL_StartTime": {
+							"value": {
+								"value": "@formatDateTime(variables('StartTime'),'yyyy-MM-dd HH:mm:ss')",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PL_TriggerTime": {
+							"value": {
+								"value": "@pipeline().TriggerTime",
+								"type": "Expression"
+							},
+							"type": "DateTime"
+						},
+						"PL_TriggerType": {
+							"value": {
+								"value": "@pipeline().TriggerType",
+								"type": "Expression"
+							},
+							"type": "String"
+						}
+					}
+				}
+			},
+			{
+				"name": "Email Alet",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Logs Failure Stored procedure",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[SendETLNotification]",
+					"storedProcedureParameters": {
+						"PipelineName": {
+							"value": {
+								"value": "@pipeline().Pipeline",
+								"type": "Expression"
+							},
+							"type": "String"
+						}
+					}
+				}
+			},
+			{
+				"name": "GET_PreIntegration_SRP",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "SRP_Raw_layer",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "SqlMISource",
+						"sqlReaderQuery": "\n\nSELECT *  from [dbo].[NotebookExecutionConfig] \nWHERE Flag = 1 and Source = 'SRP' AND Islink = 0 AND Layer = 'P' AND isSequenceLoad = 0\n",
+						"partitionOption": "None"
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "RunSRP_PreIntegration__ParallelNoteBook",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "GET_PreIntegration_SRP",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('GET_PreIntegration_SRP').output.value\n\n",
+						"type": "Expression"
+					},
+					"isSequential": false,
+					"activities": [
+						{
+							"name": "SRP PreIntegration NoteBook",
+							"type": "SynapseNotebook",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"notebook": {
+									"referenceName": {
+										"value": "@trim(item().NotebookName)",
+										"type": "Expression"
+									},
+									"type": "NotebookReference"
+								},
+								"snapshot": true,
+								"executorSize": "Small",
+								"conf": {
+									"spark.dynamicAllocation.enabled": true
+								},
+								"driverSize": "Small"
+							}
+						},
+						{
+							"name": "PreIntegration_Parallel_Error",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "SRP PreIntegration NoteBook",
+									"dependencyConditions": [
+										"Failed"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "VarSRP_PreIntegration",
+								"value": {
+									"value": "@concat('Item: ', string(item()), ' - Error: ', \nactivity('SRP PreIntegration NoteBook').error.message)\n",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Fail_SRP_PreIntegration_",
+							"type": "Fail",
+							"dependsOn": [
+								{
+									"activity": "PreIntegration_Parallel_Error",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"message": "PipeLineFailed",
+								"errorCode": "400"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "GET_PreIntegration_SRP_SequnceLoad",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "RunSRP_PreIntegration__ParallelNoteBook",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "SqlMISource",
+						"sqlReaderQuery": "\n\nSELECT *  from [dbo].[NotebookExecutionConfig] \nWHERE Flag = 1 and Source = 'SRP' AND Islink = 0 AND Layer = 'P' AND isSequenceLoad = 1 order by ExecuteOrder asc\n",
+						"partitionOption": "None"
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "RunSRP_PreIntegration_SequencelNoteBook",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "GET_PreIntegration_SRP_SequnceLoad",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('GET_PreIntegration_SRP_SequnceLoad').output.value\n\n",
+						"type": "Expression"
+					},
+					"isSequential": true,
+					"activities": [
+						{
+							"name": "SRP PreIntegration_NoteBook_SequenceLoad",
+							"type": "SynapseNotebook",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"notebook": {
+									"referenceName": {
+										"value": "@trim(item().NotebookName)",
+										"type": "Expression"
+									},
+									"type": "NotebookReference"
+								},
+								"snapshot": true,
+								"executorSize": "Small",
+								"conf": {
+									"spark.dynamicAllocation.enabled": true
+								},
+								"driverSize": "Small"
+							}
+						},
+						{
+							"name": "PreIntegrationErrorSequence",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "SRP PreIntegration_NoteBook_SequenceLoad",
+									"dependencyConditions": [
+										"Failed"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "PreIntegrationErrorSequence",
+								"value": {
+									"value": "@concat('Item: ', string(item()), ' - Error: ', activity('SRP PreIntegration_NoteBook_SequenceLoad').error.message)\n",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Fail_SRP_PreIntegration_Sequence",
+							"type": "Fail",
+							"dependsOn": [
+								{
+									"activity": "PreIntegrationErrorSequence",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"message": "PipeLineFailed",
+								"errorCode": "400"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "GET_Integration_SRP",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "STAGE TABLE CREATION",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "SqlMISource",
+						"sqlReaderQuery": "\nSELECT * FROM [dbo].[NotebookExecutionConfig] \nWHERE Flag = 1 and Source = 'SRP' AND Islink = 0 AND Layer = 'I' AND isSequenceLoad = 0\n",
+						"partitionOption": "None"
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "RunSRP_Paralle_Integration",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "GET_Integration_SRP",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('GET_Integration_SRP').output.value\n\n",
+						"type": "Expression"
+					},
+					"isSequential": false,
+					"activities": [
+						{
+							"name": "SRP Integration NoteBook",
+							"type": "SynapseNotebook",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"notebook": {
+									"referenceName": {
+										"value": "@trim(item().NotebookName)",
+										"type": "Expression"
+									},
+									"type": "NotebookReference"
+								},
+								"snapshot": true,
+								"executorSize": "Small",
+								"conf": {
+									"spark.dynamicAllocation.enabled": true
+								},
+								"driverSize": "Small"
+							}
+						},
+						{
+							"name": "Set variable_Integration_Parallel",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "SRP Integration NoteBook",
+									"dependencyConditions": [
+										"Failed"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "VAR_IntegrationParallel_error",
+								"value": {
+									"value": "@concat('Item: ', string(item()), ' - Error: ', \nactivity('SRP Integration NoteBook').error.message)\n",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Fail_SRP_PreIntegration",
+							"type": "Fail",
+							"dependsOn": [
+								{
+									"activity": "Set variable_Integration_Parallel",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"message": "PipeLineFailed",
+								"errorCode": "400"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "GET_Integration_SRP_SequnceLoad",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "RunSRP_Paralle_Integration",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "SqlMISource",
+						"sqlReaderQuery": "SELECT * FROM [dbo].[NotebookExecutionConfig] \nWHERE Flag = 1 and Source = 'SRP' AND Islink = 0 AND Layer = 'I' AND isSequenceLoad = 1",
+						"partitionOption": "None"
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "RunSRP_Integration_Sequence",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "GET_Integration_SRP_SequnceLoad",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('GET_Integration_SRP_SequnceLoad').output.value\n\n",
+						"type": "Expression"
+					},
+					"isSequential": true,
+					"activities": [
+						{
+							"name": "SRP eIntegration_NoteBook_SequenceLoad",
+							"type": "SynapseNotebook",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"notebook": {
+									"referenceName": {
+										"value": "@trim(item().NotebookName)",
+										"type": "Expression"
+									},
+									"type": "NotebookReference"
+								},
+								"snapshot": true,
+								"executorSize": "Small",
+								"conf": {
+									"spark.dynamicAllocation.enabled": true
+								},
+								"driverSize": "Small"
+							}
+						},
+						{
+							"name": "IntegrationErrorSequence",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "SRP eIntegration_NoteBook_SequenceLoad",
+									"dependencyConditions": [
+										"Failed"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "IntegrationSequenceError",
+								"value": {
+									"value": "@concat('Item: ', string(item()), ' - Error: ', \nactivity('SRP eIntegration_NoteBook_SequenceLoad').error.message)\n",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Fail_SRP_Integration_Sequence",
+							"type": "Fail",
+							"dependsOn": [
+								{
+									"activity": "IntegrationErrorSequence",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"message": "PipeLineFailed",
+								"errorCode": "400"
+							}
+						}
+					]
+				}
+			}
+		],
+		"variables": {
+			"StartTime": {
+				"type": "String"
+			},
+			"varerror": {
+				"type": "String"
+			},
+			"varerror2": {
+				"type": "String"
+			},
+			"varerror3": {
+				"type": "String"
+			},
+			"varerror4": {
+				"type": "String"
+			},
+			"VarSRP_PreIntegration": {
+				"type": "String"
+			},
+			"PreIntegrationErrorSequence": {
+				"type": "String"
+			},
+			"VAR_IntegrationParallel_error": {
+				"type": "String"
+			},
+			"IntegrationSequenceError": {
+				"type": "String"
+			},
+			"var_preintegrationerror": {
+				"type": "String"
+			},
+			"var_Integration_LinkError": {
+				"type": "String"
+			},
+			"varpreintegrationlinkerror": {
+				"type": "String"
+			},
+			"varLink_Stage_Table_Creation_": {
+				"type": "String"
+			},
+			"var_parquet_adls_link_": {
+				"type": "String"
+			},
+			"var_LoadFinalLinkTableLoad_": {
+				"type": "String"
+			},
+			"VAR_Drop Stg LINK  Table Script_": {
+				"type": "String"
+			},
+			"StartTimeLinkTableLoad": {
+				"type": "String"
+			}
+		},
+		"folder": {
+			"name": "SRP"
+		},
+		"annotations": []
+	}
+}
