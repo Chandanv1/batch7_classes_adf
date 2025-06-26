@@ -543,6 +543,10 @@
 				},
 				"userProperties": [],
 				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_SRP_DataLoadToStaging",
+						"type": "PipelineReference"
+					},
 					"waitOnCompletion": true
 				}
 			},
