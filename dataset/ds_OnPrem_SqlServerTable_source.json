@@ -1,0 +1,33 @@
+{
+	"name": "ds_OnPrem_SqlServerTable_source",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "ls_SqlServer1_dynamic",
+			"type": "LinkedServiceReference",
+			"parameters": {
+				"Database": "B7_supplyChainProject"
+			}
+		},
+		"parameters": {
+			"TableSchema": {
+				"type": "string"
+			},
+			"TableName": {
+				"type": "string"
+			}
+		},
+		"annotations": [],
+		"type": "SqlServerTable",
+		"schema": [],
+		"typeProperties": {
+			"schema": {
+				"value": "@dataset().TableSchema",
+				"type": "Expression"
+			},
+			"table": {
+				"value": "@dataset().TableName",
+				"type": "Expression"
+			}
+		}
+	}
+}
