@@ -1,0 +1,23 @@
+{
+	"name": "ds_SqlServerTable2_source",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "ls_SqlServer1_dynamic",
+			"type": "LinkedServiceReference",
+			"parameters": {
+				"Database": "B7_supplyChainProject"
+			}
+		},
+		"parameters": {
+			"Source_Object_Schema": {
+				"type": "string"
+			},
+			"Source_Object_Name": {
+				"type": "string"
+			}
+		},
+		"annotations": [],
+		"type": "SqlServerTable",
+		"schema": []
+	}
+}
