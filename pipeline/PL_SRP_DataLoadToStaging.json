@@ -104,7 +104,17 @@
 							"outputs": [
 								{
 									"referenceName": "ds_load_sink",
-									"type": "DatasetReference"
+									"type": "DatasetReference",
+									"parameters": {
+										"Directory": {
+											"value": "@concat('staging/',item().SourceName,'/tempcsv/')",
+											"type": "Expression"
+										},
+										"FileName": {
+											"value": "@concat(item().SourceTableName,'.csv')",
+											"type": "Expression"
+										}
+									}
 								}
 							]
 						}
