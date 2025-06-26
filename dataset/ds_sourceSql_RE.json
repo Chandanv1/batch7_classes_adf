@@ -1,0 +1,12 @@
+{
+	"name": "ds_sourceSql_RE",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "ls_SqlServer1_dynamic",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "SqlServerTable",
+		"schema": []
+	}
+}

@@ -75,7 +75,13 @@
 								},
 								"enableStaging": false,
 								"parallelCopies": 8
-							}
+							},
+							"inputs": [
+								{
+									"referenceName": "ds_sourceSql_RE",
+									"type": "DatasetReference"
+								}
+							]
 						}
 					]
 				}
