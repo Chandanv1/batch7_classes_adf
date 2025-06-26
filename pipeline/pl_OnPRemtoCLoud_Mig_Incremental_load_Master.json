@@ -471,6 +471,109 @@
 											"referenceName": "ls_AzureSQLDB",
 											"type": "LinkedServiceReference"
 										}
+									},
+									{
+										"name": "Stored procedure3 faiure",
+										"type": "SqlServerStoredProcedure",
+										"state": "Inactive",
+										"onInactiveMarkAs": "Succeeded",
+										"dependsOn": [
+											{
+												"activity": "Copy data1",
+												"dependencyConditions": [
+													"Failed"
+												]
+											}
+										],
+										"policy": {
+											"timeout": "0.12:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"storedProcedureName": "[dbo].[sp_UpdateErrorTable]",
+											"storedProcedureParameters": {
+												"copyDuration_in_secs": {
+													"value": "",
+													"type": "String"
+												},
+												"DataFactory_Name": {
+													"value": "",
+													"type": "String"
+												},
+												"Destination": {
+													"value": "",
+													"type": "String"
+												},
+												"effectiveIntegrationRuntime": {
+													"value": "",
+													"type": "String"
+												},
+												"ErrorCode": {
+													"value": "",
+													"type": "String"
+												},
+												"ErrorDescription": {
+													"value": "",
+													"type": "String"
+												},
+												"ErrorLoggedTime": {
+													"value": "",
+													"type": "String"
+												},
+												"Execution_Status": {
+													"value": "",
+													"type": "String"
+												},
+												"FailureType": {
+													"value": "",
+													"type": "String"
+												},
+												"Pipeline_Name": {
+													"value": "",
+													"type": "String"
+												},
+												"RunId": {
+													"value": "",
+													"type": "String"
+												},
+												"Sink_Type": {
+													"value": "",
+													"type": "String"
+												},
+												"Source": {
+													"value": "",
+													"type": "String"
+												},
+												"Source_Type": {
+													"value": "",
+													"type": "String"
+												},
+												"TriggerId": {
+													"value": "",
+													"type": "String"
+												},
+												"TriggerName": {
+													"value": "",
+													"type": "String"
+												},
+												"TriggerTime": {
+													"value": "",
+													"type": "String"
+												},
+												"TriggerType": {
+													"value": "",
+													"type": "String"
+												}
+											}
+										},
+										"linkedServiceName": {
+											"referenceName": "ls_AzureSQLDB",
+											"type": "LinkedServiceReference"
+										}
 									}
 								]
 							}
