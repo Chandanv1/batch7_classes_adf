@@ -124,6 +124,8 @@
 			{
 				"name": "csv to parquet",
 				"type": "SynapseNotebook",
+				"state": "Inactive",
+				"onInactiveMarkAs": "Succeeded",
 				"dependsOn": [
 					{
 						"activity": "Get Max Date",
@@ -152,6 +154,8 @@
 			{
 				"name": "Get Max Date",
 				"type": "Lookup",
+				"state": "Inactive",
+				"onInactiveMarkAs": "Succeeded",
 				"dependsOn": [
 					{
 						"activity": "LoadData",
@@ -180,6 +184,8 @@
 			{
 				"name": "Update LastLoadDate",
 				"type": "Script",
+				"state": "Inactive",
+				"onInactiveMarkAs": "Succeeded",
 				"dependsOn": [
 					{
 						"activity": "csv to parquet",
@@ -212,6 +218,8 @@
 			{
 				"name": "Delete csv Files",
 				"type": "Delete",
+				"state": "Inactive",
+				"onInactiveMarkAs": "Succeeded",
 				"dependsOn": [
 					{
 						"activity": "Update LastLoadDate",
